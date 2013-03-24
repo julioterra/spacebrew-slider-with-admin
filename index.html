@@ -64,16 +64,21 @@
 					;
 
 				for ( var i = 0; i < event.target.length; i++ ) {
+					if (i == 0) continue;
 					sub_name = $(event.target[i]).attr("routename");
 					client_name = $(event.target[i]).attr("clientname");
 					remote_address = $(event.target[i]).attr("remoteAddress");
 					pub_name = $(this).parent().context.id.replace("-select", "");					
 					if (event.target[i].selected == true) {
-						console.log("ROUTE - $(this) " , $(this) );
-						console.log("ROUTE - current item status" + i + " is: ", event.target[i].selected );
-						console.log("ROUTE - add name " + pub_name + " address: " + remote_address + " client_name: " + client_name + " sub_name: " + sub_name);
+						// console.log("ROUTE - $(this) " , $(this) );
+						// console.log("ROUTE - current item status" + i + " is: ", event.target[i].selected );
+						// console.log("ROUTE - add name " + pub_name + " address: " + remote_address + " client_name: " + client_name + " sub_name: " + sub_name);
 						sb.addSubRoute( pub_name, client_name, remote_address, sub_name );					
+					} else {
+						sb.removeSubRoute( pub_name, client_name, remote_address, sub_name );					
+
 					}
+
 				}
 			});		
 		}
@@ -132,13 +137,13 @@
 			client_id = client_id.replace(/ /g, "");
 
 			// extract appropriate pub or sub elements from new client 
-			console.log("[removePubSubUIofType] removing client '" + name + "' with address '" + address + "'");
+			console.log("[removePubSub] removing client '" + name + "' with address '" + address + "'");
 
 			// and loop through each one to add to list.
 			for (var i = pub_sub_array.length - 1; i >= 0 ; i --) {
-				console.log("[removePubSubUIofType] " + client_id  + " comp to " + pub_sub_array[i].clientId);
+				console.log("[removePubSub] " + client_id  + " comp to " + pub_sub_array[i].clientId);
 				if (client_id === pub_sub_array[i].clientId) {				
-					console.log("[removePubSubUIofType] found client with id " + client_id );
+					console.log("[removePubSub] found client with id " + client_id );
 					if ($("option[name='" + client_id + "']")) {
 						$("option[name='" + client_id + "']").remove();
 					}
@@ -154,7 +159,7 @@
 			// and loop through each one to add to list.
 			for (var j = 0; j < pub_sub_array.length; j ++) {
 				if (pub_sub_array[j].clientId === client_id) {
-					removePubSubUIofType(client.name, client.remoteAddress, pub_sub_array);
+					removePubSub(client.name, client.remoteAddress, pub_sub_array);
 					break;
 				}
 			}
@@ -181,7 +186,6 @@
 						$new_option.attr("routeName", new_subs_or_pubs[i].name);
 						$new_option.attr("clientName", new_subs_or_pubs[i].clientName);
 						$new_option.attr("remoteAddress", new_subs_or_pubs[i].remoteAddress);
-						console.log ("NEW OPTION ", $new_option);
 						$("#" + $item.id).selectmenu( "refresh" );
 					});					
 				}

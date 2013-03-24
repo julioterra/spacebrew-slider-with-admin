@@ -376,7 +376,6 @@ Spacebrew.Client.prototype._onMessage = function( e ){
 		, value
 		;
 
-
 	// handle client messages 
 	if (data["message"]) {
 		// check to make sure that this is not an admin message
@@ -403,32 +402,8 @@ Spacebrew.Client.prototype._onMessage = function( e ){
 
 	// handle admin messages
 	else {
-		if (true) console.log("ADMIN handling client ", data);
-		
-		if (data["admin"]) {
-			// nothing to be done
-		}
-		else if (data["remove"]) {
-			if (true) console.log("REMOVE handling remove user message ", data["remove"]);
-			for (var i = 0; i < data.remove.length; i ++) {
-				this.onRemoveClient( data.remove[i].name, data.remove[i].remoteAddress );
-				this.onAllClientUpdates();
-			}			
-		}
-		else if (data["route"]) {
-			this.onUpdatedRoute( data.route.type, data.route.publish, data.route.subscribe );
-			if (true) console.log("ROUTE handling route update message ", data["route"]);
-		} 
-		else if (data instanceof Array || data["config"]) {
-			if (true) console.log("POSSIBLE handling client config message ", data);
-			if (data["config"]) data = [data];
-			for (var i = 0; i < data.length; i ++) {
-				if (data[i]["config"]) {
-					if (true) console.log("NEW handling client config message ", data[i].config);
-					this._onNewClient(data[i].config);
-					this.onAllClientUpdates();
-				} 
-			}
+		if (this["_handleAdminMessages"]) {
+			this._handleAdminMessages( data );		
 		}
 	}
 }
@@ -441,6 +416,7 @@ Spacebrew.Client.prototype._onMessage = function( e ){
 Spacebrew.Client.prototype._onClose = function() {
     console.log("[_onClose:Spacebrew] Spacebrew connection closed");
 	this._isConnected = false;
+	this.admin.remoteAddress = undefined;
 	this.onClose();
 };
 
@@ -495,8 +471,6 @@ Spacebrew.Client.prototype.isConnected = function (){
 /**
  * ADMIN HANDLER METHODS
  */
-
-Spacebrew.Client.prototype.onAllClientUpdates = function(){}
 
 /**
  * Override in your app to receive new client information, e.g. sb.onNewClient = yourFunction
@@ -554,6 +528,38 @@ Spacebrew.Client.prototype.onUpdatedRoute = function( type, pub, sub ){}
 Spacebrew.Client.prototype.onRemoveClient = function( name, address ){}
 
 
+Spacebrew.Client.prototype._handleAdminMessages = function( data ){
+	if (true) console.log("[_handleAdminMessages] new message receive ", data);
+	
+	if (data["admin"]) {
+		// nothing to be done
+	}
+
+	else if (data["remove"]) {
+		if (this.debug) console.log("[_handleAdminMessages] remove client message ", data["remove"]);
+		for (var i = 0; i < data.remove.length; i ++) {
+			this.onRemoveClient( data.remove[i].name, data.remove[i].remoteAddress );
+		}			
+	}
+
+	else if (data["route"]) {
+		this.onUpdatedRoute( data.route.type, data.route.publish, data.route.subscribe );
+		if (this.debug) console.log("[_handleAdminMessages] route update message ", data["route"]);
+	} 
+
+	else if (data instanceof Array || data["config"]) {
+		if (true) console.log("[_handleAdminMessages] handle client config message(s) ", data);
+		if (data["config"]) data = [data];
+		for (var i = 0; i < data.length; i ++) {
+			if (data[i]["config"]) {
+				this._onNewClient(data[i].config);
+			} 
+		}
+	}	
+}
+
+
+
 /**
  * Called when a new client message is received. Only used when app is registered as
  * an admin application.
@@ -565,31 +571,7 @@ Spacebrew.Client.prototype.onRemoveClient = function( name, address ){}
 Spacebrew.Client.prototype._onNewClient = function( client ){
 	var existing_client = false;
 
-		if (client.name === this._name && !this.admin.remoteAddress) {
-			console.log("ADDRESS testing for remote address - STEP 1");				
-			if ((client.publish.messages.length == this.client_config.publish.messages.length) &&
-				(client.subscribe.messages.length == this.client_config.subscribe.messages.length)) {
-				console.log("ADDRESS testing for remote address - STEP 2");				
-				var match_confirmed = true
-					, cur_pub_sub = ["subscribe", "publish"]
-					;
-				for (var j = 0; j < cur_pub_sub.length; j ++ ) {
-					var client_config = client[cur_pub_sub[j]].messages;
-					var local_config = this.client_config[cur_pub_sub[j]].messages;
-					for (var i = 0; i < client_config.length; i ++ ) {
-						if (!(client_config[i].name === local_config[i].name) ||
-							!(client_config[i].type === local_config[i].type)) {
-							match_confirmed = false;
-							break;
-						}	
-					}									
-				}	
-				if (match_confirmed){
-					this.admin.remoteAddress = client.remoteAddress;					
-					console.log("ADDRESS updating local remote address to " + this.admin.remoteAddress);				
-				}
-			}
-		}
+	this._setLocalIPAddress( client );
 
 	for( var j = 0; j < this.admin.clients.length; j++ ){
 		console.log("existing client logged on " + client.name + " address " + client.remoteAddress);				
@@ -597,15 +579,11 @@ Spacebrew.Client.prototype._onNewClient = function( client ){
 		if ( this.admin.clients[j].name === client.name
 			 && this.admin.clients[j].remoteAddress === client.remoteAddress ) {
 
+			existing_client = true;
+
 			this.admin.clients[j].publish = client.publish;
 			this.admin.clients[j].subscribe = client.subscribe;
 			this.admin.clients[j].description = client.description;
-
-			existing_client = true;
-
-			// client.publish = client.publish.messages;
-			// client.subscribe = client.subscribe.messages;
-
 			this.onUpdatedClient( client );
 		}
 	}
@@ -615,10 +593,39 @@ Spacebrew.Client.prototype._onNewClient = function( client ){
 		console.log("new client logged on " + client.name + " address " + client.remoteAddress);				
 
 		this.admin.clients.push( client );
-
-		// client.publish = client.publish.messages;
-		// client.subscribe = client.subscribe.messages;
 		this.onNewClient( client );
+	}
+}
+
+Spacebrew.Client.prototype._setLocalIPAddress = function (client) {
+	var match_confirmed = true
+		, cur_pub_sub = ["subscribe", "publish"]
+		, client_config = []
+		, local_config = []
+		;
+
+	// check if client already exists
+	if (client.name === this._name && !this.admin.remoteAddress) {
+		if ((client.publish.messages.length == this.client_config.publish.messages.length) &&
+			(client.subscribe.messages.length == this.client_config.subscribe.messages.length)) {
+
+			for (var j = 0; j < cur_pub_sub.length; j ++ ) {
+				client_config = client[cur_pub_sub[j]].messages;
+				local_config = this.client_config[cur_pub_sub[j]].messages;
+
+				for (var i = 0; i < client_config.length; i ++ ) {
+					if (!(client_config[i].name === local_config[i].name) ||
+						!(client_config[i].type === local_config[i].type)) {
+						match_confirmed = false;
+						break;
+					}	
+				}									
+			}	
+			if (match_confirmed){
+				this.admin.remoteAddress = client.remoteAddress;	
+				console.log("[_setLocalIPAddress] local IP address set to ", this.admin.remoteAddress);				
+			}
+		}
 	}
 }
 
@@ -715,12 +722,12 @@ Spacebrew.Client.prototype.removeRoute = function ( pub_client, pub_address, pub
 
 Spacebrew.Client.prototype.removeSubRoute = function ( pub_name, sub_client, sub_address, sub_name ){
 	if (!this.admin.remoteAddress) return;
-	this._updateRoute("remove", this.name, this.remoteAddress, pub_name, sub_client, sub_address, sub_name);
+	this._updateRoute("remove", this._name, this.admin.remoteAddress, pub_name, sub_client, sub_address, sub_name);
 }
 
 Spacebrew.Client.prototype.removePubRoute = function ( sub_name, pub_client, pub_address, pub_name){
 	if (!this.admin.remoteAddress) return;
-	this._updateRoute("remove", pub_client, pub_address, pub_name, this.name, this.remoteAddress, sub_name);
+	this._updateRoute("remove", pub_client, pub_address, pub_name, this._name, this.admin.remoteAddress, sub_name);
 }
 
 /**
@@ -748,7 +755,6 @@ Spacebrew.Client.prototype._updateRoute = function ( type, pub_client, pub_addre
 
 	// if request type is not supported then abort
 	if (type !== "add" && type !== "remove") return;
-	console.log("[_updateRoute] changing routes " + type);
 
 	// check if pub and sub information was in first two arguments. If so then 
 	if ((pub_client.clientName && pub_client.remoteAddress && pub_client.name && pub_client.type) &&
@@ -774,7 +780,6 @@ Spacebrew.Client.prototype._updateRoute = function ( type, pub_client, pub_addre
 		}
 
 		console.log("[_updateRoute] sending route to admin ", JSON.stringify(new_route));
-
 		this.socket.send(JSON.stringify(new_route));
 		return;
 	}
@@ -782,7 +787,7 @@ Spacebrew.Client.prototype._updateRoute = function ( type, pub_client, pub_addre
 	pub_type = this.getPublishType(pub_client, pub_address, pub_name);
 	sub_type = this.getSubscribeType(pub_client, pub_address, pub_name);
 	if (pub_type != sub_type && pub_type != undefined) {
-		console.log("[_updateRoute] unable to create route because of type mismatch - pub:" + pub_type + " sub:  " + sub_type);
+		console.log("[_updateRoute] not routed :: types don't match - pub:" + pub_type + " sub:  " + sub_type);
 		return;
 	}
 
@@ -792,8 +797,7 @@ Spacebrew.Client.prototype._updateRoute = function ( type, pub_client, pub_addre
 		name: pub_name,
 		type: pub_type
 	}
-
-	console.log("[_updateRoute] create pub object ", publish);
+	console.log("[_updateRoute] created pub object ", publish);
 
 	subscribe = {
 		clientName: sub_client,
@@ -801,8 +805,7 @@ Spacebrew.Client.prototype._updateRoute = function ( type, pub_client, pub_addre
 		name: sub_name,
 		type: sub_type
 	}
-
-	console.log("[_updateRoute] create sub object ", subscribe);
+	console.log("[_updateRoute] created sub object ", subscribe);
 
 	// call itself with publish and subscribe objects properly formatted
 	this._updateRoute(type, publish, subscribe);
