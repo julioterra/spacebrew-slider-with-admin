@@ -1,0 +1,204 @@
+<!DOCTYPE html> 
+<html> 
+<head> 
+	<title>Spacebrew Sliders (Range Example)</title> 
+
+	<meta name="viewport" content="width=device-width, initial-scale=1"> 
+	<!-- <link rel="stylesheet" href="http://code.jquery.com/mobile/1.2.0/jquery.mobile-1.2.0.min.css" /> -->
+	<link rel="stylesheet" href="css/bootstrap.css" />
+	<link rel="stylesheet" href="css/flat-ui.css" />
+	<link rel="stylesheet" href="css/main.css" />
+    <link rel="shortcut icon" href="images/favicon.ico">
+	<!-- // <script src="http://code.jquery.com/jquery-1.8.2.min.js"></script> -->
+	<!-- // <script src="http://code.jquery.com/mobile/1.2.0/jquery.mobile-1.2.0.min.js"></script> -->
+	<!-- // <script type="text/javascript" src="js/boostrap.js"></script> -->
+	<!-- // <script type="text/javascript" src="js/flat-ui/application.js"></script> -->
+    <!-- // <script type="text/javascript" src="js/sb-1.0.4.js"></script> -->
+
+</head> 
+<body> 
+
+
+<div data-role="page">
+
+	<div class="row">
+		<div class="span6 offset1">
+			<h1>SpaceBrew Sliders</h1>
+
+			<div class="row">
+				<div class="span6">		
+					<label class="text-center">
+						<h2>slider uno:</h2>
+					</label>
+				</div>
+			</div>
+			<div class="row">
+		        <div class="span6">
+					<div class="span6 ui-slider select-choice-range slider" id="slider1"></div>
+					<select class="span6 select-choice-range" tabindex="1" name="select-choice-range-slider-1" id="select-choice-range-slider-1">
+						<option value="0">Choose Subscriber</option>
+					</select>
+		        </div>
+		    </div>
+
+			<div class="row">
+				<div class="span6">		
+					<label class="text-center">
+						<h2>slider dos:</h2>
+					</label>
+				</div>
+			</div>
+			<div class="row">
+				<div class="span6">
+					<div class="span6 ui-slider select-choice-range slider" id="slider2"></div>
+					<select class="span6 select-choice-range" tabindex="1" name="select-choice-range-slider-2" id="select-choice-range-slider-2">
+						<option value="0">Choose Subscriber</option>
+					</select>
+		        </div>
+			</div>
+
+			<div class="row">
+				<div class="span6">		
+					<label class="text-center">
+						<h2>slider tres:</h2>
+					</label>
+				</div>
+			</div>
+			<div class="row">
+				<div class="span6">
+					<div class="span6 ui-slider select-choice-range slider" id="slider3"></div>
+					<select class="span6 select-choice-range" tabindex="1" name="select-choice-range-slider-3" id="select-choice-range-slider-3">
+						<option value="0">Choose Subscriber</option>
+					</select>
+				</div>
+			</div>
+		</div>
+		<div class="span5">
+		</div>
+	</div>
+
+
+</div><!-- /page -->
+
+    <!-- Load JS here for greater good =============================-->
+    <script src="js/flat-ui/jquery-1.8.2.min.js"></script>
+    <script src="js/flat-ui/jquery-ui-1.10.0.custom.min.js"></script>
+    <script src="js/flat-ui/jquery.dropkick-1.0.0.js"></script>
+    <!-- // <script src="js/flat-ui/bootstrap-tooltip.js"></script> -->
+    <script src="js/js/bootstrap.js"></script>
+    <script type="text/javascript" src="js/scrollability.js"></script>
+    <script type="text/javascript" src="js/sb-1.0.4.js"></script>
+
+    <!--[if lt IE 8]>
+      <script src="js/icon-font-ie7.js"></script>
+      <script src="js/icon-font-ie7-24.js"></script>
+    <![endif]-->
+    <script type="text/javascript">
+
+$(function () {
+    // Custom selects
+    // $("select").dropkick();
+});
+
+		function repositionTooltip( e, ui ){
+			console.log("slider with id "+ e.target.id + " has moved to " + ui.value);
+		}
+
+    	// when page loads call spacebrew setup function 
+		$(window).on("load", setupSpacebrew);
+
+		$(window).on("load", setupUI);
+		// wher the jquery mobile is ready to initialize the UI call the setUI function 
+		$(document).bind("pageinit", setupUI);
+
+		// variable that holds the spacebrew client object
+		var sb = {}
+			, range_subs = []
+			, debug = false;
+
+		/**
+		 * setupSpacebrew Function that creates and configures the connection to the Spacebrew server.
+		 * 				  It is called when the page loads.
+		 */
+		function setupSpacebrew (){
+			console.log("Setting up spacebrew connection");
+			sb = new Spacebrew.Client(undefined, undefined, undefined, {admin: true});
+
+			sb.description("Sliders for sending and displaying SpaceBrew range messages.");
+
+			// configure the publication and subscription feeds
+			sb.addPublish("slider1", "range", "500");
+			sb.addPublish("slider2", "range", "500");
+			sb.addPublish("slider3", "range", "500");
+			sb.addSubscribe("slider1", "range");
+			sb.addSubscribe("slider2", "range");
+			sb.addSubscribe("slider3", "range");
+
+			// override Spacebrew events - this is how you catch events coming from Spacebrew
+			sb.onRangeMessage = onRangeMessage;
+			sb.onAllClientUpdates = onAllClientUpdates;
+
+			// connect to spacbrew
+			sb.connect();
+		};
+
+		/**
+		 * setupUI Function that create the event listeners for the sliders. It creates an callback
+		 * 		   function that sends a spacebrew message whenever an slide event is received.
+		 */
+		function setupUI() {
+		    // Init jQuery UI slider
+		    $(".slider").slider({
+		        min: 1,
+		        max: 1023,
+		        value: 500,
+		        orientation: "horizontal",
+		        range: "min",
+		        slide: repositionTooltip
+		    });
+
+			setupSpacebrew();
+			console.log("Setting up the UI listeners");
+		}
+
+		/**
+		 * onRangeMessage Function that is called whenever new spacebrew range messages are received.
+		 * 				  It accepts two parameters:
+		 * @param  {String} name  	Holds name of the subscription feed channel
+		 * @param  {Integer} value 	Holds value received from the subscription feed
+		 */
+		function onRangeMessage(name, value){
+			if (debug) console.log("[onRangeMessage] new range message received ", name);
+			$("#"+name).slider('refresh', value);
+		};
+
+		function onAllClientUpdates () {
+			range_subs = sb.subscribeListByType("range");
+			console.log("onNewClient, updated range_subs ", range_subs);
+
+			// update code so that old connections don't get closed down
+
+			$("select.select-choice-range option").remove();
+			$("select.select-choice-range").each( function(i, $items) {
+				// $("#" + $items.id)[0].empty();
+				console.log("cur item id", $items.id)
+				console.log("cur item id", $("#" + $items.id)[0])
+
+				for (var i = 0; i < range_subs.length; i ++) {
+					$new_opt = $('<option>', { value: i,
+									text: range_subs[i].clientName + " : " + range_subs[i].name,
+									name: i
+					});
+					$("#" + $items.id).append($new_opt);
+				}
+				// $("#" + $items.id).dropkick('reload');
+			})
+		}
+
+	$('body').on('touchstart.dropdown', '.dropdown-menu', function (e) { 
+	    e.stopPropagation(); 
+	});
+    </script>
+
+</body>
+</html>

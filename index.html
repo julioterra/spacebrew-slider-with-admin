@@ -1,0 +1,261 @@
+<!DOCTYPE html> 
+<html> 
+<head> 
+	<title>Spacebrew Sliders (Range Example)</title> 
+
+	<meta name="viewport" content="width=device-width, initial-scale=1"> 
+	<link rel="stylesheet" href="http://code.jquery.com/mobile/1.2.0/jquery.mobile-1.2.0.min.css" />
+	<script src="http://code.jquery.com/jquery-1.8.2.min.js"></script>
+	<script src="http://code.jquery.com/mobile/1.2.0/jquery.mobile-1.2.0.min.js"></script>
+    <script type="text/javascript" src="js/mobile_detect.js"></script>
+    <script type="text/javascript" src="js/sb-1.0.4.js"></script>
+
+    <script type="text/javascript">
+
+
+		// variable that holds the spacebrew client object
+		var sb = {}
+			, range_subs = []
+			, debug = false;
+
+
+		// customize UI based on whether on mobile device
+		$(document).live("pagebeforecreate", checkIfMobile);
+
+		function checkIfMobile() {
+			$("select.select-subscribe-range").each( function(i, $item) {
+				if (!$.browser.mobile) $("#" + $item.id).attr("data-native-menu", "false");
+				else $("#" + $item.id).attr("data-native-menu", "true");
+				console.log("update menu ", $("#" + $item.id).attr("data-native-menu"));
+			});
+		}
+
+
+		// wher the jquery mobile is ready to initialize the UI call the setUI function 
+		$(document).live("pageinit", setupApp);
+
+		$(window).on("load", setupSpacebrew());
+
+
+		function setupApp() {
+			// setupSpacebrew();
+			setupUI();
+		}
+
+		/**
+		 * setupUI Function that create the event listeners for the sliders. It creates an callback
+		 * 		   function that sends a spacebrew message whenever an slide event is received.
+		 */
+		function setupUI() {
+			console.log("Setting up the UI listeners");
+
+			// when the slider state changes it sends a message to spacebrew
+			$(".slider").bind( "change", function(event, ui) {
+				sb.send(event.target.id, "range", event.target.valueAsNumber);
+			});
+
+			// if app is running on a desktop computer then set data-native-menu= to "false"
+			$(".select-subscribe-range").bind( "change", function(event, ui) {
+				console.log("select-subscribe-range - updated id ", event);
+				var pub_name
+					, remote_address
+					, client_name
+					, sub_name
+					;
+
+				for ( var i = 0; i < event.target.length; i++ ) {
+					sub_name = $(event.target[i]).attr("routename");
+					client_name = $(event.target[i]).attr("clientname");
+					remote_address = $(event.target[i]).attr("remoteAddress");
+					pub_name = $(this).parent().context.id.replace("-select", "");					
+					if (event.target[i].selected == true) {
+						console.log("ROUTE - $(this) " , $(this) );
+						console.log("ROUTE - current item status" + i + " is: ", event.target[i].selected );
+						console.log("ROUTE - add name " + pub_name + " address: " + remote_address + " client_name: " + client_name + " sub_name: " + sub_name);
+						sb.addSubRoute( pub_name, client_name, remote_address, sub_name );					
+					}
+				}
+			});		
+		}
+
+		/**
+		 * setupSpacebrew Function that creates and configures the connection to the Spacebrew server.
+		 * 				  It is called when the page loads.
+		 */
+		function setupSpacebrew (){
+			console.log("Setting up spacebrew connection");
+			sb = new Spacebrew.Client(undefined, undefined, undefined, {admin: true});
+
+			sb.description("Sliders for sending and displaying SpaceBrew range messages.");
+
+			// configure the publication and subscription feeds
+			sb.addPublish("slider1", "range", "500");
+			sb.addPublish("slider2", "range", "500");
+			sb.addPublish("slider3", "range", "500");
+			sb.addSubscribe("slider1", "range");
+			sb.addSubscribe("slider2", "range");
+			sb.addSubscribe("slider3", "range");
+
+			// override Spacebrew events - this is how you catch events coming from Spacebrew
+			sb.onRangeMessage = onRangeMessage;
+			sb.onNewClient = onNewClient;
+			sb.onUpdatedClient = onNewClient;
+			sb.onRemoveClient = onRemoveClient;
+
+			// connect to spacbrew
+			sb.connect();
+		};
+
+		/**
+		 * onRangeMessage Function that is called whenever new spacebrew range messages are received.
+		 * 				  It accepts two parameters:
+		 * @param  {String} name  	Holds name of the subscription feed channel
+		 * @param  {Integer} value 	Holds value received from the subscription feed
+		 */
+		function onRangeMessage(name, value){
+			if (debug) console.log("[onRangeMessage] new range message received ", name);
+			$("#"+name).slider('refresh', value);
+		};
+
+		function onNewClient( client ) {
+			console.log("[onNewClient] new client ", client);
+			addPubSubUIofType(client, "range", "subscribe", range_subs);
+		}
+
+		function onRemoveClient( name, address ) {
+			console.log("[onRemoveClient] remove client '" + name + "' with address '" + address + "'");
+			removePubSub(name, address, range_subs);
+		}
+
+		function removePubSub(name, address, pub_sub_array) {
+			var client_id = name + "_" + address;
+			client_id = client_id.replace(/ /g, "");
+
+			// extract appropriate pub or sub elements from new client 
+			console.log("[removePubSubUIofType] removing client '" + name + "' with address '" + address + "'");
+
+			// and loop through each one to add to list.
+			for (var i = pub_sub_array.length - 1; i >= 0 ; i --) {
+				console.log("[removePubSubUIofType] " + client_id  + " comp to " + pub_sub_array[i].clientId);
+				if (client_id === pub_sub_array[i].clientId) {				
+					console.log("[removePubSubUIofType] found client with id " + client_id );
+					if ($("option[name='" + client_id + "']")) {
+						$("option[name='" + client_id + "']").remove();
+					}
+				}
+				$("select").selectmenu( "refresh" );
+			}			
+		}		
+
+		function addPubSubUIofType (client, type, pub_or_sub, pub_sub_array) {
+			var client_id = client.name + "_" + client.remoteAddress;
+			client_id = client_id.replace(/ /g, "");
+
+			// and loop through each one to add to list.
+			for (var j = 0; j < pub_sub_array.length; j ++) {
+				if (pub_sub_array[j].clientId === client_id) {
+					removePubSubUIofType(client.name, client.remoteAddress, pub_sub_array);
+					break;
+				}
+			}
+
+			// extract appropriate pub or sub elements from new client 
+			var new_subs_or_pubs = getPubSubOfType(client, type, pub_or_sub);
+			if (new_subs_or_pubs.length <= 0) return;
+			console.log("[updatePubSubUIofType] adding '" + pub_or_sub + "' of type '" + type + "' from ", client);
+
+			// and loop through each one to add to list.
+			for (var i = 0; i < new_subs_or_pubs.length; i ++) {
+
+				// add new subscribe elements to local array
+				pub_sub_array.push(new_subs_or_pubs[i]);
+
+				// loop through pub or sub drop down of appropriate type to add new items
+				if ($("select.select-" + pub_or_sub + "-" + type)) {
+					$("select.select-" + pub_or_sub + "-" + type).each( function(index, $item) {
+						var $new_option = $('<option>', { value: new_subs_or_pubs[i].id
+										, text: new_subs_or_pubs[i].clientName + " : " + new_subs_or_pubs[i].name
+										, name: new_subs_or_pubs[i].clientId
+						});
+						$new_option.appendTo("#" + $item.id);
+						$new_option.attr("routeName", new_subs_or_pubs[i].name);
+						$new_option.attr("clientName", new_subs_or_pubs[i].clientName);
+						$new_option.attr("remoteAddress", new_subs_or_pubs[i].remoteAddress);
+						console.log ("NEW OPTION ", $new_option);
+						$("#" + $item.id).selectmenu( "refresh" );
+					});					
+				}
+			}			
+		}
+
+		function getPubSubOfType (client, type, pub_or_sub){
+			var pub_sub_item = {}
+				, new_item = {}
+				, pub_sub_list = []
+				, client_id = ""
+				, pub_sub_id = ""
+				;
+
+			// loop through pub or sub elements to extract appropriate types
+			for( var j = 0; j < client[pub_or_sub].messages.length; j++ ){
+				pub_sub_item = client[pub_or_sub].messages[j];
+				if ( pub_sub_item.type === type ) {
+
+					client_id = client.name + "_" + client.remoteAddress;
+					client_id = client_id.replace(/ /g, "");
+
+					pub_sub_id = client_id + "_" + pub_sub_item.name;
+					pub_sub_id = pub_sub_id.replace(/ /g, "");
+
+					new_item = { clientName: client.name
+								, remoteAddress: client.remoteAddress 
+								, name: pub_sub_item.name
+								, type: pub_sub_item.type
+								, id: pub_sub_id
+								, clientId: client_id
+							};
+					pub_sub_list.push( new_item );
+				}			
+			}
+			console.log("[getPubSubOfType] returning list of " + pub_or_sub, pub_sub_list );
+			return pub_sub_list;
+		}
+
+    </script>
+
+</head> 
+<body> 
+
+<div data-role="page">
+	<div data-role="header">
+		<h1>SpaceBrew Sliders</h1>
+	</div>
+
+	<div data-role="content" id="content">	
+		<form id="defaults">
+			<label for="slider1">Input Slider 1:</label>
+			<input type="range" class="slider" name="slider" id="slider1" value="500" min="0" max="1023"  />
+			<select name="select-subscribe-range" id="slider1-select" class="select-subscribe-range" multiple="multiple" data-native-menu="true" data-icon="grid" data-iconpos="left">
+			    <option name="none">choose the subscribers:</option>
+			</select>
+
+			<label for="slider2">Input Slider 2:</label>
+			<input type="range" class="slider" name="slider" id="slider2" value="500" min="0" max="1023"  />
+			<select name="select-subscribe-range" id="slider2-select" class="select-subscribe-range" multiple="multiple" data-native-menu="true" data-icon="grid" data-iconpos="left">
+			    <option name="none">choose the subscribers:</option>
+			</select>
+
+			<label for="slider3">Input Slider 3:</label>
+			<input type="range" class="slider" name="slider" id="slider3" value="500" min="0" max="1023"  />
+			<select name="select-subscribe-range" id="slider3-select" class="select-subscribe-range" multiple="multiple" data-native-menu="true" data-icon="grid" data-iconpos="left">
+			    <option name="none">choose the subscribers:</option>
+			</select>
+		</form>
+
+	</div><!-- /content -->
+</div><!-- /page -->
+
+<script>
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+/*
+.dk_options_inner {
+  width: 350px;
+}
+ */
+
+.text-center h2 {
+	margin-bottom:0px;
+}
+
+.ui-slider {
+	margin-left: 0px;
+}
+
+
+.dk_fouc select {
+position: relative;
+top: 0;
+visibility: visible;
+color: black;
+height:50px;
+}
