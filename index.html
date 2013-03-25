@@ -50,13 +50,15 @@
 			console.log("Setting up the UI listeners");
 
 			// when the slider state changes it sends a message to spacebrew
-			$(".slider").bind( "change", function(event, ui) {
+			$(".slider").bind( "change", function(event) {
 				sb.send(event.target.id, "range", event.target.valueAsNumber);
 			});
 
 			// if app is running on a desktop computer then set data-native-menu= to "false"
-			$(".select-subscribe-range").bind( "change", function(event, ui) {
+			$(".select-subscribe-range").bind( "change", function(event) {
 				console.log("select-subscribe-range - updated id ", event);
+
+
 				var pub_name
 					, remote_address
 					, client_name
@@ -68,15 +70,19 @@
 					sub_name = $(event.target[i]).attr("routename");
 					client_name = $(event.target[i]).attr("clientname");
 					remote_address = $(event.target[i]).attr("remoteAddress");
-					pub_name = $(this).parent().context.id.replace("-select", "");					
-					if (event.target[i].selected == true) {
+					prev_state = $(event.target[i]).attr("data-prev-state");
+					pub_name = $(this).parent().context.id.replace("-select", "");	
+					console.log ("ROUTE selected ", event.target[i].selected)				
+					if (event.target[i].selected && prev_state === "false") {
 						// console.log("ROUTE - $(this) " , $(this) );
 						// console.log("ROUTE - current item status" + i + " is: ", event.target[i].selected );
-						// console.log("ROUTE - add name " + pub_name + " address: " + remote_address + " client_name: " + client_name + " sub_name: " + sub_name);
-						sb.addSubRoute( pub_name, client_name, remote_address, sub_name );					
-					} else {
+						console.log("ROUTE add name " + pub_name + " address: " + remote_address + " client_name: " + client_name + " sub_name: " + sub_name);
+						sb.addSubRoute( pub_name, client_name, remote_address, sub_name );
+						$(event.target[i]).attr("data-prev-state", "true");					
+					} else if (!event.target[i].selected && prev_state === "true") {
+						console.log("ROUTE remove name " + pub_name + " address: " + remote_address + " client_name: " + client_name + " sub_name: " + sub_name);
 						sb.removeSubRoute( pub_name, client_name, remote_address, sub_name );					
-
+						$(event.target[i]).attr("data-prev-state", "false");					
 					}
 
 				}
@@ -104,8 +110,9 @@
 			// override Spacebrew events - this is how you catch events coming from Spacebrew
 			sb.onRangeMessage = onRangeMessage;
 			sb.onNewClient = onNewClient;
-			sb.onUpdatedClient = onNewClient;
+			sb.onUpdateClient = onNewClient;
 			sb.onRemoveClient = onRemoveClient;
+			sb.onUpdateRoute = onUpdateRoute;
 
 			// connect to spacbrew
 			sb.connect();
@@ -124,12 +131,75 @@
 
 		function onNewClient( client ) {
 			console.log("[onNewClient] new client ", client);
-			addPubSubUIofType(client, "range", "subscribe", range_subs);
+			addPubSub(client, "range", "subscribe", range_subs);
 		}
 
 		function onRemoveClient( name, address ) {
 			console.log("[onRemoveClient] remove client '" + name + "' with address '" + address + "'");
 			removePubSub(name, address, range_subs);
+		}
+
+		function onUpdateRoute ( type, pub, sub ) {
+			updateRoute(type, pub, sub);
+			$("select").selectmenu( "refresh" );
+		}
+
+		function updateRoute ( type, pub, sub ) {
+			var pub_sub_id
+				, select_id
+				, pub_or_sub
+				;
+
+			// console.log ("[onUpdateRoute] pub ", pub);
+			// console.log ("[onUpdateRoute] sub ", sub);
+
+			// check if route involves the current app, get ids if appropriate
+			if (sb.isThisApp(pub.clientName, pub.remoteAddress)) {
+				pub_sub_id = sub.clientName + "_" + sub.remoteAddress + "_" + sub.name;
+				pub_sub_id = pub_sub_id.replace(/ /g, "");
+				select_id = pub.name + "-select";
+			} 
+			else if (sb.isThisApp(sub.clientName, sub.remoteAddress)) {
+				pub_sub_id = pub.clientName + "_" + pub.remoteAddress + "_" + pub.name;
+				pub_sub_id = pub_sub_id.replace(/ /g, "");
+				select_id = sub.name + "-select";
+			} 
+			// if route doesn't involve current app then abort
+			else {
+				console.log ("[onUpdateRoute] route doesn't involve this client");
+				return;
+			}
+
+			console.log ("[onUpdateRoute] '" + type + "' route to dropdown '" + select_id + "' option '" + pub_sub_id + "'");
+			console.log ("[onUpdateRoute] select dom node ", $('#' + select_id).find('option[value="' + pub_sub_id + '"]'));
+
+			var cur_option
+
+			// if add route message then select appropriate drop down option
+			// if remove message then de-select approrpriate drop down option
+			if (type === "add") {
+				// $('#select_id option[value=' + pub_sub_id + ']')
+				cur_option = $('#' + select_id).find('option[value="' + pub_sub_id + '"]')
+				if (!$(cur_option[0]).attr("selected")) {
+				// if ($(cur_option[0]).attr("data-prev-state") === "false") {
+					$(cur_option[0]).attr("selected", "selected");
+					$(cur_option[0]).attr("data-prev-state", "true");						
+				}
+			} 
+			else if (type === "remove") {
+				cur_option = $('#' + select_id).find('option[value="' + pub_sub_id + '"]');
+				if ($(cur_option[0]).attr("selected")) {
+				// if ($(cur_option[0]).attr("data-prev-state") === "true") {
+					$(cur_option[0]).removeAttr("selected");
+					$(cur_option[0]).attr("data-prev-state", "false");						
+				}
+
+			}
+			console.log ("[onUpdateRoute] cur option ", cur_option[0]);
+		}
+
+		function onRoute() {
+
 		}
 
 		function removePubSub(name, address, pub_sub_array) {
@@ -152,7 +222,7 @@
 			}			
 		}		
 
-		function addPubSubUIofType (client, type, pub_or_sub, pub_sub_array) {
+		function addPubSub (client, type, pub_or_sub, pub_sub_array) {
 			var client_id = client.name + "_" + client.remoteAddress;
 			client_id = client_id.replace(/ /g, "");
 
@@ -165,9 +235,9 @@
 			}
 
 			// extract appropriate pub or sub elements from new client 
-			var new_subs_or_pubs = getPubSubOfType(client, type, pub_or_sub);
+			var new_subs_or_pubs = extractPubOrSubFromClient(client, type, pub_or_sub);
 			if (new_subs_or_pubs.length <= 0) return;
-			console.log("[updatePubSubUIofType] adding '" + pub_or_sub + "' of type '" + type + "' from ", client);
+			console.log("[addPubSub] adding '" + pub_or_sub + "' of type '" + type + "' from ", client);
 
 			// and loop through each one to add to list.
 			for (var i = 0; i < new_subs_or_pubs.length; i ++) {
@@ -186,13 +256,14 @@
 						$new_option.attr("routeName", new_subs_or_pubs[i].name);
 						$new_option.attr("clientName", new_subs_or_pubs[i].clientName);
 						$new_option.attr("remoteAddress", new_subs_or_pubs[i].remoteAddress);
+						$new_option.attr("data-prev-state", "false");
 						$("#" + $item.id).selectmenu( "refresh" );
 					});					
 				}
 			}			
 		}
 
-		function getPubSubOfType (client, type, pub_or_sub){
+		function extractPubOrSubFromClient (client, type, pub_or_sub){
 			var pub_sub_item = {}
 				, new_item = {}
 				, pub_sub_list = []
@@ -221,7 +292,7 @@
 					pub_sub_list.push( new_item );
 				}			
 			}
-			console.log("[getPubSubOfType] returning list of " + pub_or_sub, pub_sub_list );
+			console.log("[extractPubOrSubFromClient] returning list of " + pub_or_sub, pub_sub_list );
 			return pub_sub_list;
 		}
 

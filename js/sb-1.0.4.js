@@ -501,8 +501,8 @@ Spacebrew.Client.prototype.onNewClient = function( client ){}
  * @memberOf Spacebrew.Client
  * @public
  */
-// Spacebrew.Client.prototype.onUpdatedClient = function( name, address, description, pubs, subs ){}
-Spacebrew.Client.prototype.onUpdatedClient = function( client ){}
+// Spacebrew.Client.prototype.onUpdateClient = function( name, address, description, pubs, subs ){}
+Spacebrew.Client.prototype.onUpdateClient = function( client ){}
 
 /**
  * Override in your app to receive information about new routes, e.g. sb.onNewRoute = yourStringFunction
@@ -514,7 +514,7 @@ Spacebrew.Client.prototype.onUpdatedClient = function( client ){}
  * @memberOf Spacebrew.Client
  * @public
  */
-Spacebrew.Client.prototype.onUpdatedRoute = function( type, pub, sub ){}
+Spacebrew.Client.prototype.onUpdateRoute = function( type, pub, sub ){}
 
 /**
  * Override in your app to receive client removal messages, e.g. sb.onCustomMessage = yourStringFunction
@@ -543,8 +543,8 @@ Spacebrew.Client.prototype._handleAdminMessages = function( data ){
 	}
 
 	else if (data["route"]) {
-		this.onUpdatedRoute( data.route.type, data.route.publish, data.route.subscribe );
-		if (this.debug) console.log("[_handleAdminMessages] route update message ", data["route"]);
+		// if (this.debug) console.log("[_handleAdminMessages] route update message ", data["route"]);
+		this.onUpdateRoute( data.route.type, data.route.publisher, data.route.subscriber );
 	} 
 
 	else if (data instanceof Array || data["config"]) {
@@ -584,7 +584,7 @@ Spacebrew.Client.prototype._onNewClient = function( client ){
 			this.admin.clients[j].publish = client.publish;
 			this.admin.clients[j].subscribe = client.subscribe;
 			this.admin.clients[j].description = client.description;
-			this.onUpdatedClient( client );
+			this.onUpdateClient( client );
 		}
 	}
 
@@ -769,16 +769,21 @@ Spacebrew.Client.prototype._updateRoute = function ( type, pub_client, pub_addre
 
 		if (type === "add") {
 			for (var i = 0; i < this.admin.routes.length; i++) {
+				// if route does not exists then create it, otherwise abort
 				if (!this._compareRoutes(new_route, this.admin.routes[i])) this.admin.routes.push(new_route);
+				else return;
 			}
 		}
 
 		else if (type === "remove") {
 			for (var i = this.admin.routes.length - 1; i >= 0; i--) {
+				// if route exists then remove it, otherwise abort
 				if (this._compareRoutes(new_route, this.admin.routes[i])) this.admin.routes.splice(i,i);
+				else return;
 			}
 		}
 
+		// send new route information to spacebrew server
 		console.log("[_updateRoute] sending route to admin ", JSON.stringify(new_route));
 		this.socket.send(JSON.stringify(new_route));
 		return;
@@ -821,20 +826,20 @@ Spacebrew.Client.prototype._compareRoutes = function (route_a, route_b){
 	return false;
 }
 
-Spacebrew.Client.prototype.getPublishType = function (client_name, remoteAddress, pub_name){
-	return this._getPubSubType("publish", client_name, remoteAddress, pub_name);
+Spacebrew.Client.prototype.getPublishType = function (client_name, remote_address, pub_name){
+	return this._getPubSubType("publish", client_name, remote_address, pub_name);
 }
 
-Spacebrew.Client.prototype.getSubscribeType = function (client_name, remoteAddress, sub_name){
-	return this._getPubSubType("subscribe", client_name, remoteAddress, sub_name);
+Spacebrew.Client.prototype.getSubscribeType = function (client_name, remote_address, sub_name){
+	return this._getPubSubType("subscribe", client_name, remote_address, sub_name);
 }
 
-Spacebrew.Client.prototype._getPubSubType = function (pub_or_sub, client_name, remoteAddress, pub_sub_name){
+Spacebrew.Client.prototype._getPubSubType = function (pub_or_sub, client_name, remote_address, pub_sub_name){
 	var clients;
 
 	for( var j = 0; j < this.admin.clients.length; j++ ){
 		client = this.admin.clients[j];
-		if ( client.name === client_name && client.remoteAddress === remoteAddress ) {
+		if ( client.name === client_name && client.remoteAddress === remote_address ) {
 			for( var i = 0; i < client[pub_or_sub].messages.length; i++ ){
 				if (client[pub_or_sub].messages[i].name === pub_sub_name) {
 					return client[pub_or_sub].messages[i].type;
@@ -844,3 +849,9 @@ Spacebrew.Client.prototype._getPubSubType = function (pub_or_sub, client_name, r
 	}
 	return false;
 }
+
+Spacebrew.Client.prototype.isThisApp = function (client_name, remote_address){
+	if (this._name === client_name && this.admin.remoteAddress === remote_address) return true;
+	else return false;
+}
+
