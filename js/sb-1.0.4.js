@@ -15,14 +15,13 @@
  * filename sb-1.0.4.min.js.
  *
  * Latest Updates:
- * - enable client apps to register for admin privileges.
- * - added methods to handle admin messages and to update routes.
+ * - enable client apps to extend libs with admin functionality.
  * - added close method to close Spacebrew connection.
  * 
  * @author 		Brett Renfer and Julio Terra from LAB @ Rockwell Group
  * @filename	sb-1.0.4.js
  * @version 	1.0.4
- * @date 		Mar 18, 2013
+ * @date 		Mar 24, 2013
  * 
  */
 
@@ -142,7 +141,6 @@ Spacebrew.Client = function( server, name, description, options ){
 		this._description = (window.getQueryString('description') !== "" ? unescape(window.getQueryString('description')) : this._description);
 	}
 
-
 	/**
 	 * Spacebrew server to which the app will connect
 	 * @type {String}
@@ -185,18 +183,7 @@ Spacebrew.Client = function( server, name, description, options ){
 		}
 	};
 
-	this.admin_config = [
-			{
-				admin: true
-			}
-		];		
-
-	this.admin = {
-		active: options.admin || false, 
-		remoteAddress: undefined,
-		clients: [],
-		routes: []
-	}
+	this.admin = {}
 
 	/**
 	 * Are we connected to a Spacebrew server?
@@ -322,8 +309,6 @@ Spacebrew.Client.prototype.addSubscribe = function( name, type ){
 Spacebrew.Client.prototype.updatePubSub = function(){
 	if (this._isConnected) {
 		this.socket.send(JSON.stringify({"config": this.client_config}));
-		console.log ("this.admin.active ", this.admin.active);
-		if (this.admin.active == true) this.socket.send(JSON.stringify({"admin": this.admin_config}));
 	}
 }
 
@@ -356,7 +341,9 @@ Spacebrew.Client.prototype.send = function( name, type, value ){
  */
 Spacebrew.Client.prototype._onOpen = function() {
     console.log("[_onOpen:Spacebrew] Spacebrew connection opened, client name is: " + this._name);
+
 	this._isConnected = true;
+	if (this.admin.active) this.connectAdmin();
 
   	// send my config
   	this.updatePubSub();
@@ -402,7 +389,7 @@ Spacebrew.Client.prototype._onMessage = function( e ){
 
 	// handle admin messages
 	else {
-		if (this["_handleAdminMessages"]) {
+		if (this.admin.active) {
 			this._handleAdminMessages( data );		
 		}
 	}
@@ -415,8 +402,10 @@ Spacebrew.Client.prototype._onMessage = function( e ){
  */
 Spacebrew.Client.prototype._onClose = function() {
     console.log("[_onClose:Spacebrew] Spacebrew connection closed");
+
 	this._isConnected = false;
-	this.admin.remoteAddress = undefined;
+	if (this.admin.active) this.admin.remoteAddress = undefined;
+
 	this.onClose();
 };
 
@@ -468,390 +457,14 @@ Spacebrew.Client.prototype.isConnected = function (){
 	return this._isConnected;	
 };
 
-/**
- * ADMIN HANDLER METHODS
- */
 
-/**
- * Override in your app to receive new client information, e.g. sb.onNewClient = yourFunction
- * Admin-related method.
- * 
- * @param {Object} client  			Object with client config details described below
- *        {String} name  			Name of client
- *        {String} address 			IP address of client
- *        {String} description 		Description of client
- *        {Array} publish 			Array with all publish data feeds for client
- *        {Array} subscribe  		Array with subscribe data feeds for client
- * @memberOf Spacebrew.Client
- * @public
- */
-// Spacebrew.Client.prototype.onNewClient = function( name, address, description, pubs, subs ){}
-Spacebrew.Client.prototype.onNewClient = function( client ){}
-
-/**
- * Override in your app to receive updated information about existing client, e.g. sb.onNewClient = yourFunction
- * Admin-related method.
- * 
- * @param {Object} client  			Object with client config details described below
- *        {String} name  			Name of client
- *        {String} address 			IP address of client
- *        {String} description 		Description of client
- *        {Array} publish 			Array with all publish data feeds for client
- *        {Array} subscribe  		Array with subscribe data feeds for client
- * @memberOf Spacebrew.Client
- * @public
- */
-// Spacebrew.Client.prototype.onUpdateClient = function( name, address, description, pubs, subs ){}
-Spacebrew.Client.prototype.onUpdateClient = function( client ){}
-
-/**
- * Override in your app to receive information about new routes, e.g. sb.onNewRoute = yourStringFunction
- * Admin-related method.
- * 
- * @param  {String} type 			Type of route message, either add or remove
- * @param  {Object} pub 			Object with name of client name and address, publish name and type
- * @param  {Object} sub 			Object with name of client name and address, subscribe name and type
- * @memberOf Spacebrew.Client
- * @public
- */
-Spacebrew.Client.prototype.onUpdateRoute = function( type, pub, sub ){}
-
-/**
- * Override in your app to receive client removal messages, e.g. sb.onCustomMessage = yourStringFunction
- * Admin-related method.
- * 
- * @param  {String} name  		Name of client being removed
- * @param  {String} address  	Address of client being removed
- * @memberOf Spacebrew.Client
- * @public
- */
-Spacebrew.Client.prototype.onRemoveClient = function( name, address ){}
+Spacebrew.Client.prototype.extend = function ( mixin ) {    
+    for (var prop in mixin) {
+        if (mixin.hasOwnProperty(prop)) {
+            this[prop] = mixin[prop];
+        }
+    }
+};
 
 
-Spacebrew.Client.prototype._handleAdminMessages = function( data ){
-	if (true) console.log("[_handleAdminMessages] new message receive ", data);
-	
-	if (data["admin"]) {
-		// nothing to be done
-	}
-
-	else if (data["remove"]) {
-		if (this.debug) console.log("[_handleAdminMessages] remove client message ", data["remove"]);
-		for (var i = 0; i < data.remove.length; i ++) {
-			this.onRemoveClient( data.remove[i].name, data.remove[i].remoteAddress );
-		}			
-	}
-
-	else if (data["route"]) {
-		// if (this.debug) console.log("[_handleAdminMessages] route update message ", data["route"]);
-		this.onUpdateRoute( data.route.type, data.route.publisher, data.route.subscriber );
-	} 
-
-	else if (data instanceof Array || data["config"]) {
-		if (true) console.log("[_handleAdminMessages] handle client config message(s) ", data);
-		if (data["config"]) data = [data];
-		for (var i = 0; i < data.length; i ++) {
-			if (data[i]["config"]) {
-				this._onNewClient(data[i].config);
-			} 
-		}
-	}	
-}
-
-
-
-/**
- * Called when a new client message is received. Only used when app is registered as
- * an admin application.
- * 
- * @param  {object} client 	Configuration information for new client, including name,
- *                          address, description, subscribe, and publishers
- * @private
- */
-Spacebrew.Client.prototype._onNewClient = function( client ){
-	var existing_client = false;
-
-	this._setLocalIPAddress( client );
-
-	for( var j = 0; j < this.admin.clients.length; j++ ){
-		console.log("existing client logged on " + client.name + " address " + client.remoteAddress);				
-
-		if ( this.admin.clients[j].name === client.name
-			 && this.admin.clients[j].remoteAddress === client.remoteAddress ) {
-
-			existing_client = true;
-
-			this.admin.clients[j].publish = client.publish;
-			this.admin.clients[j].subscribe = client.subscribe;
-			this.admin.clients[j].description = client.description;
-			this.onUpdateClient( client );
-		}
-	}
-
-	//if we did not find a matching client, then add this one
-	if ( !existing_client ) {
-		console.log("new client logged on " + client.name + " address " + client.remoteAddress);				
-
-		this.admin.clients.push( client );
-		this.onNewClient( client );
-	}
-}
-
-Spacebrew.Client.prototype._setLocalIPAddress = function (client) {
-	var match_confirmed = true
-		, cur_pub_sub = ["subscribe", "publish"]
-		, client_config = []
-		, local_config = []
-		;
-
-	// check if client already exists
-	if (client.name === this._name && !this.admin.remoteAddress) {
-		if ((client.publish.messages.length == this.client_config.publish.messages.length) &&
-			(client.subscribe.messages.length == this.client_config.subscribe.messages.length)) {
-
-			for (var j = 0; j < cur_pub_sub.length; j ++ ) {
-				client_config = client[cur_pub_sub[j]].messages;
-				local_config = this.client_config[cur_pub_sub[j]].messages;
-
-				for (var i = 0; i < client_config.length; i ++ ) {
-					if (!(client_config[i].name === local_config[i].name) ||
-						!(client_config[i].type === local_config[i].type)) {
-						match_confirmed = false;
-						break;
-					}	
-				}									
-			}	
-			if (match_confirmed){
-				this.admin.remoteAddress = client.remoteAddress;	
-				console.log("[_setLocalIPAddress] local IP address set to ", this.admin.remoteAddress);				
-			}
-		}
-	}
-}
-
-/**
- * Returns the client that matches the name and remoteAddress parameters queried
- * @param  {String} name           	Name of the client application
- * @param  {String} remoteAddress  	IP address of the client apps
- * @return {Object}                	Object featuring all client config information
- */
-Spacebrew.Client.prototype.getClient = function (name, remoteAddress){
-	var client;
-
-	for( var j = 0; j < this.admin.clients.length; j++ ){
-		client = this.admin.clients[j];
-		if ( client.name === name && client.remoteAddress === remoteAddress ) {
-			return client;
-		}
-	}
-}
-
-
-
-Spacebrew.Client.prototype.subscribeListByType = function (type){
-	return this._pubSubByType("subscribe", type);
-}
-
-Spacebrew.Client.prototype.publishListByType = function (type){
-	return this._pubSubByType("publish", type);
-}
-
-Spacebrew.Client.prototype._pubSubByType = function (pub_or_sub, type){
-	var client = {}
-		, filtered_clients = []
-		, pub_sub_item = {}
-		, new_item = {}
-		;
-
-	for( var j = 0; j < this.admin.clients.length; j++ ){
-		client = this.admin.clients[j];
-		for (var i = 0; i < client[pub_or_sub].messages.length; i++) {
-			pub_sub_item = client[pub_or_sub].messages[i];
-			if ( pub_sub_item.type === type ) {
-				new_item = { clientName: client.name
-							, remoteAddress: client.remoteAddress 
-							, name: pub_sub_item.name
-							, type: pub_sub_item.type
-						};
-				filtered_clients.push( new_item );
-			}			
-		}
-	}
-	return filtered_clients;
-}
-
-/**
- * Method that is used to add a route to the Spacebrew server
- * @param {String or Object} pub_client 	Publish client app name OR
- *                   						object with all publish information.
- * @param {String or Object} pub_address 	Publish app remote IP address OR
- *                   						object with all subscribe information.
- * @param {String} pub_name    				Publish name 
- * @param {String} sub_client  				Subscribe client app name
- * @param {String} sub_address 				Subscribe app remote IP address 
- * @param {String} sub_name    				Subscribe name
- */
-Spacebrew.Client.prototype.addRoute = function ( pub_client, pub_address, pub_name, sub_client, sub_address, sub_name ){
-	this._updateRoute("add", pub_client, pub_address, pub_name, sub_client, sub_address, sub_name);
-}
-
-Spacebrew.Client.prototype.addSubRoute = function ( pub_name, sub_client, sub_address, sub_name ){
-	if (!this.admin.remoteAddress) return;
-	this._updateRoute("add", this._name, this.admin.remoteAddress, pub_name, sub_client, sub_address, sub_name);
-}
-
-Spacebrew.Client.prototype.addPubRoute = function ( sub_name, pub_client, pub_address, pub_name){
-	if (!this.admin.remoteAddress) return;
-	this._updateRoute("add", pub_client, pub_address, pub_name, this._name, this.admin.remoteAddress, sub_name);
-}
-
-/**
- * Method that is used to remove a route from the Spacebrew server
- * @param {String or Object} pub_client 	Publish client app name OR
- *                   						object with all publish information.
- * @param {String or Object} pub_address 	Publish app remote IP address OR
- *                   						object with all subscribe information.
- * @param {String} pub_name    				Publish name 
- * @param {String} sub_client  				Subscribe client app name
- * @param {String} sub_address 				Subscribe app remote IP address 
- * @param {String} sub_name    				Subscribe name
- */
-Spacebrew.Client.prototype.removeRoute = function ( pub_client, pub_address, pub_name, sub_client, sub_address, sub_name ){
-	this._updateRoute("remove", pub_client, pub_address, pub_name, sub_client, sub_address, sub_name);
-}
-
-Spacebrew.Client.prototype.removeSubRoute = function ( pub_name, sub_client, sub_address, sub_name ){
-	if (!this.admin.remoteAddress) return;
-	this._updateRoute("remove", this._name, this.admin.remoteAddress, pub_name, sub_client, sub_address, sub_name);
-}
-
-Spacebrew.Client.prototype.removePubRoute = function ( sub_name, pub_client, pub_address, pub_name){
-	if (!this.admin.remoteAddress) return;
-	this._updateRoute("remove", pub_client, pub_address, pub_name, this._name, this.admin.remoteAddress, sub_name);
-}
-
-/**
- * Method that handles both add and remove route requests. Responsible for parsing requests
- * and communicating with Spacebrew server
- * @private
- * 
- * @param {String} type 					Type of route request, either "add" or "remove"
- * @param {String or Object} pub_client 	Publish client app name OR
- * @param {String or Object} pub_client 	Publish client app name OR
- *                   						object with all publish information.
- * @param {String or Object} pub_address 	Publish app remote IP address OR
- *                   						object with all subscribe information.
- * @param {String} pub_name    				Publish name 
- * @param {String} sub_client  				Subscribe client app name
- * @param {String} sub_address 				Subscribe app remote IP address 
- * @param {String} sub_name    				Subscribe name
- */
-Spacebrew.Client.prototype._updateRoute = function ( type, pub_client, pub_address, pub_name, sub_client, sub_address, sub_name ){
-	var new_route
-		, route_type
-		, subscribe
-		, publish
-		;
-
-	// if request type is not supported then abort
-	if (type !== "add" && type !== "remove") return;
-
-	// check if pub and sub information was in first two arguments. If so then 
-	if ((pub_client.clientName && pub_client.remoteAddress && pub_client.name && pub_client.type) &&
-		(pub_address.clientName && pub_address.remoteAddress && pub_address.name && pub_address.type)) {
-		new_route = {
-			route: {
-				type: type,
-				publisher: pub_client,
-				subscriber: pub_address				
-			}
-		}
-
-		if (type === "add") {
-			for (var i = 0; i < this.admin.routes.length; i++) {
-				// if route does not exists then create it, otherwise abort
-				if (!this._compareRoutes(new_route, this.admin.routes[i])) this.admin.routes.push(new_route);
-				else return;
-			}
-		}
-
-		else if (type === "remove") {
-			for (var i = this.admin.routes.length - 1; i >= 0; i--) {
-				// if route exists then remove it, otherwise abort
-				if (this._compareRoutes(new_route, this.admin.routes[i])) this.admin.routes.splice(i,i);
-				else return;
-			}
-		}
-
-		// send new route information to spacebrew server
-		console.log("[_updateRoute] sending route to admin ", JSON.stringify(new_route));
-		this.socket.send(JSON.stringify(new_route));
-		return;
-	}
-
-	pub_type = this.getPublishType(pub_client, pub_address, pub_name);
-	sub_type = this.getSubscribeType(pub_client, pub_address, pub_name);
-	if (pub_type != sub_type && pub_type != undefined) {
-		console.log("[_updateRoute] not routed :: types don't match - pub:" + pub_type + " sub:  " + sub_type);
-		return;
-	}
-
-	publish = {
-		clientName: pub_client,
-		remoteAddress: pub_address,
-		name: pub_name,
-		type: pub_type
-	}
-	console.log("[_updateRoute] created pub object ", publish);
-
-	subscribe = {
-		clientName: sub_client,
-		remoteAddress: sub_address,
-		name: sub_name,
-		type: sub_type
-	}
-	console.log("[_updateRoute] created sub object ", subscribe);
-
-	// call itself with publish and subscribe objects properly formatted
-	this._updateRoute(type, publish, subscribe);
-}
-
-Spacebrew.Client.prototype._compareRoutes = function (route_a, route_b){
-	if ((route_a.clientName === route_b.clientName) &&
-		(route_a.name === route_b.name) &&
-		(route_a.type === route_b.type) &&
-		(route_a.remoteAddress === route_b.remoteAddress)) {
-		return true;
-	}
-	return false;
-}
-
-Spacebrew.Client.prototype.getPublishType = function (client_name, remote_address, pub_name){
-	return this._getPubSubType("publish", client_name, remote_address, pub_name);
-}
-
-Spacebrew.Client.prototype.getSubscribeType = function (client_name, remote_address, sub_name){
-	return this._getPubSubType("subscribe", client_name, remote_address, sub_name);
-}
-
-Spacebrew.Client.prototype._getPubSubType = function (pub_or_sub, client_name, remote_address, pub_sub_name){
-	var clients;
-
-	for( var j = 0; j < this.admin.clients.length; j++ ){
-		client = this.admin.clients[j];
-		if ( client.name === client_name && client.remoteAddress === remote_address ) {
-			for( var i = 0; i < client[pub_or_sub].messages.length; i++ ){
-				if (client[pub_or_sub].messages[i].name === pub_sub_name) {
-					return client[pub_or_sub].messages[i].type;
-				}
-			}
-		}
-	}
-	return false;
-}
-
-Spacebrew.Client.prototype.isThisApp = function (client_name, remote_address){
-	if (this._name === client_name && this.admin.remoteAddress === remote_address) return true;
-	else return false;
-}
 

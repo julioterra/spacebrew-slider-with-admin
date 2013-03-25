@@ -5,35 +5,27 @@
 
 	<meta name="viewport" content="width=device-width, initial-scale=1"> 
 	<link rel="stylesheet" href="http://code.jquery.com/mobile/1.2.0/jquery.mobile-1.2.0.min.css" />
+
 	<script src="http://code.jquery.com/jquery-1.8.2.min.js"></script>
 	<script src="http://code.jquery.com/mobile/1.2.0/jquery.mobile-1.2.0.min.js"></script>
     <script type="text/javascript" src="js/mobile_detect.js"></script>
     <script type="text/javascript" src="js/sb-1.0.4.js"></script>
+    <script type="text/javascript" src="js/sb-admin-0.0.1.js"></script>
 
     <script type="text/javascript">
-
 
 		// variable that holds the spacebrew client object
 		var sb = {}
 			, range_subs = []
 			, debug = false;
 
-
-		// customize UI based on whether on mobile device
+		// customize UI based on whether page is loaded on a mobile device
 		$(document).live("pagebeforecreate", checkIfMobile);
 
-		function checkIfMobile() {
-			$("select.select-subscribe-range").each( function(i, $item) {
-				if (!$.browser.mobile) $("#" + $item.id).attr("data-native-menu", "false");
-				else $("#" + $item.id).attr("data-native-menu", "true");
-				console.log("update menu ", $("#" + $item.id).attr("data-native-menu"));
-			});
-		}
-
-
-		// wher the jquery mobile is ready to initialize the UI call the setUI function 
+		// when jquery mobile is ready to initialize the UI call the setUI function 
 		$(document).live("pageinit", setupApp);
 
+		// when window is loaded connect to Spacebrew
 		$(window).on("load", setupSpacebrew());
 
 
@@ -56,36 +48,9 @@
 
 			// if app is running on a desktop computer then set data-native-menu= to "false"
 			$(".select-subscribe-range").bind( "change", function(event) {
-				console.log("select-subscribe-range - updated id ", event);
-
-
-				var pub_name
-					, remote_address
-					, client_name
-					, sub_name
-					;
-
-				for ( var i = 0; i < event.target.length; i++ ) {
-					if (i == 0) continue;
-					sub_name = $(event.target[i]).attr("routename");
-					client_name = $(event.target[i]).attr("clientname");
-					remote_address = $(event.target[i]).attr("remoteAddress");
-					prev_state = $(event.target[i]).attr("data-prev-state");
-					pub_name = $(this).parent().context.id.replace("-select", "");	
-					console.log ("ROUTE selected ", event.target[i].selected)				
-					if (event.target[i].selected && prev_state === "false") {
-						// console.log("ROUTE - $(this) " , $(this) );
-						// console.log("ROUTE - current item status" + i + " is: ", event.target[i].selected );
-						console.log("ROUTE add name " + pub_name + " address: " + remote_address + " client_name: " + client_name + " sub_name: " + sub_name);
-						sb.addSubRoute( pub_name, client_name, remote_address, sub_name );
-						$(event.target[i]).attr("data-prev-state", "true");					
-					} else if (!event.target[i].selected && prev_state === "true") {
-						console.log("ROUTE remove name " + pub_name + " address: " + remote_address + " client_name: " + client_name + " sub_name: " + sub_name);
-						sb.removeSubRoute( pub_name, client_name, remote_address, sub_name );					
-						$(event.target[i]).attr("data-prev-state", "false");					
-					}
-
-				}
+				console.log("select-subscribe-range - dropdown changed ", event);
+				var self = this;
+				updateRouteFromUI( event, self);
 			});		
 		}
 
@@ -96,6 +61,7 @@
 		function setupSpacebrew (){
 			console.log("Setting up spacebrew connection");
 			sb = new Spacebrew.Client(undefined, undefined, undefined, {admin: true});
+			sb.extend(Spacebrew.Admin);
 
 			sb.description("Sliders for sending and displaying SpaceBrew range messages.");
 
@@ -132,26 +98,65 @@
 		function onNewClient( client ) {
 			console.log("[onNewClient] new client ", client);
 			addPubSub(client, "range", "subscribe", range_subs);
+			$("select").selectmenu( "refresh" );
 		}
 
 		function onRemoveClient( name, address ) {
 			console.log("[onRemoveClient] remove client '" + name + "' with address '" + address + "'");
 			removePubSub(name, address, range_subs);
-		}
-
-		function onUpdateRoute ( type, pub, sub ) {
-			updateRoute(type, pub, sub);
 			$("select").selectmenu( "refresh" );
 		}
 
-		function updateRoute ( type, pub, sub ) {
+		function onUpdateRoute ( type, pub, sub ) {
+			updateRouteFromServer(type, pub, sub);
+			$("select").selectmenu( "refresh" );
+		}
+
+
+		/**
+		 * ADMIN DROPDOWN MENU HANDLER METHODS
+		 */
+
+		function checkIfMobile() {
+			$("select.select-subscribe-range").each( function(i, $item) {
+				if (!$.browser.mobile) $("#" + $item.id).attr("data-native-menu", "false");
+				else $("#" + $item.id).attr("data-native-menu", "true");
+				console.log("update menu ", $("#" + $item.id).attr("data-native-menu"));
+			});
+		}
+
+		function updateRouteFromUI ( event, self ) {
+			var pub_name
+				, remote_address
+				, client_name
+				, sub_name
+				;
+
+			for ( var i = 0; i < event.target.length; i++ ) {
+				if (i == 0) continue;
+				sub_name = $(event.target[i]).attr("data-route-name");
+				client_name = $(event.target[i]).attr("data-client-name");
+				remote_address = $(event.target[i]).attr("data-remote-address");
+				prev_state = $(event.target[i]).attr("data-prev-state");
+				pub_name = $(self).parent().context.id.replace("-select", "");	
+
+				if (event.target[i].selected && prev_state === "false") {
+					sb.addSubRoute( pub_name, client_name, remote_address, sub_name );
+					$(event.target[i]).attr("data-prev-state", "true");					
+				} 
+
+				else if (!event.target[i].selected && prev_state === "true") {
+					sb.removeSubRoute( pub_name, client_name, remote_address, sub_name );					
+					$(event.target[i]).attr("data-prev-state", "false");					
+				}
+			}
+		}
+
+		function updateRouteFromServer ( type, pub, sub ) {
 			var pub_sub_id
 				, select_id
 				, pub_or_sub
 				;
-
-			// console.log ("[onUpdateRoute] pub ", pub);
-			// console.log ("[onUpdateRoute] sub ", sub);
 
 			// check if route involves the current app, get ids if appropriate
 			if (sb.isThisApp(pub.clientName, pub.remoteAddress)) {
@@ -181,7 +186,6 @@
 				// $('#select_id option[value=' + pub_sub_id + ']')
 				cur_option = $('#' + select_id).find('option[value="' + pub_sub_id + '"]')
 				if (!$(cur_option[0]).attr("selected")) {
-				// if ($(cur_option[0]).attr("data-prev-state") === "false") {
 					$(cur_option[0]).attr("selected", "selected");
 					$(cur_option[0]).attr("data-prev-state", "true");						
 				}
@@ -189,17 +193,12 @@
 			else if (type === "remove") {
 				cur_option = $('#' + select_id).find('option[value="' + pub_sub_id + '"]');
 				if ($(cur_option[0]).attr("selected")) {
-				// if ($(cur_option[0]).attr("data-prev-state") === "true") {
 					$(cur_option[0]).removeAttr("selected");
 					$(cur_option[0]).attr("data-prev-state", "false");						
 				}
 
 			}
 			console.log ("[onUpdateRoute] cur option ", cur_option[0]);
-		}
-
-		function onRoute() {
-
 		}
 
 		function removePubSub(name, address, pub_sub_array) {
@@ -218,7 +217,6 @@
 						$("option[name='" + client_id + "']").remove();
 					}
 				}
-				$("select").selectmenu( "refresh" );
 			}			
 		}		
 
@@ -253,11 +251,10 @@
 										, name: new_subs_or_pubs[i].clientId
 						});
 						$new_option.appendTo("#" + $item.id);
-						$new_option.attr("routeName", new_subs_or_pubs[i].name);
-						$new_option.attr("clientName", new_subs_or_pubs[i].clientName);
-						$new_option.attr("remoteAddress", new_subs_or_pubs[i].remoteAddress);
+						$new_option.attr("data-route-name", new_subs_or_pubs[i].name);
+						$new_option.attr("data-client-name", new_subs_or_pubs[i].clientName);
+						$new_option.attr("data-remote-address", new_subs_or_pubs[i].remoteAddress);
 						$new_option.attr("data-prev-state", "false");
-						$("#" + $item.id).selectmenu( "refresh" );
 					});					
 				}
 			}			
