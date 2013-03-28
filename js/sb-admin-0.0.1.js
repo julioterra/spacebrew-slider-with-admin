@@ -323,8 +323,8 @@ Spacebrew.Admin._updateRoute = function ( type, pub_client, pub_address, pub_nam
 	if (type !== "add" && type !== "remove") return;
 
 	// check if pub and sub information was in first two arguments. If so then 
-	if ((pub_client.clientName && pub_client.remoteAddress && pub_client.name && pub_client.type) &&
-		(pub_address.clientName && pub_address.remoteAddress && pub_address.name && pub_address.type)) {
+	if ((pub_client.clientName && pub_client.remoteAddress && pub_client.name && pub_client.type != undefined) &&
+		(pub_address.clientName && pub_address.remoteAddress && pub_address.name && pub_address.type != undefined)) {
 		new_route = {
 			route: {
 				type: type,
@@ -356,8 +356,8 @@ Spacebrew.Admin._updateRoute = function ( type, pub_client, pub_address, pub_nam
 	}
 
 	pub_type = this.getPublishType(pub_client, pub_address, pub_name);
-	sub_type = this.getSubscribeType(pub_client, pub_address, pub_name);
-	if (pub_type != sub_type && pub_type != undefined) {
+	sub_type = this.getSubscribeType(sub_client, sub_address, sub_name);
+	if (pub_type != sub_type || pub_type == false || pub_type == undefined) {
 		console.log("[_updateRoute] not routed :: types don't match - pub:" + pub_type + " sub:  " + sub_type);
 		return;
 	}
@@ -407,6 +407,7 @@ Spacebrew.Admin._getPubSubType = function (pub_or_sub, client_name, remote_addre
 		client = this.admin.clients[j];
 		if ( client.name === client_name && client.remoteAddress === remote_address ) {
 			for( var i = 0; i < client[pub_or_sub].messages.length; i++ ){
+				console.log("Compare Types " + client[pub_or_sub].messages[i].name + " with " + pub_sub_name)
 				if (client[pub_or_sub].messages[i].name === pub_sub_name) {
 					return client[pub_or_sub].messages[i].type;
 				}

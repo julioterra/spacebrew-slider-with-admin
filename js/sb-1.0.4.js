@@ -121,6 +121,8 @@ if (!window && module) {
  */
 Spacebrew.Client = function( server, name, description, options ){
 
+	var options = options || {};
+
 	this.debug = options.debug || false;
 
 	/**
