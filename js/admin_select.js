@@ -43,7 +43,7 @@
 		function updateRouteFromServer ( type, pub, sub ) {
 			var pub_sub_id
 				, select_id
-				, pub_or_sub
+				, connecting_to_pub_or_sub
 				;
 
 			// check if route involves the current app, get ids if appropriate
@@ -51,42 +51,51 @@
 				pub_sub_id = sub.clientName + "_" + sub.remoteAddress + "_" + sub.name;
 				pub_sub_id = pub_sub_id.replace(/ /g, "");
 				select_id = pub.name + "-select";
+				connecting_to_pub_or_sub = "subscribe";
 			} 
 			else if (sb.isThisApp(sub.clientName, sub.remoteAddress)) {
 				pub_sub_id = pub.clientName + "_" + pub.remoteAddress + "_" + pub.name;
 				pub_sub_id = pub_sub_id.replace(/ /g, "");
 				select_id = sub.name + "-select";
+				connecting_to_pub_or_sub = "publish";
 			} 
 			// if route doesn't involve current app then abort
 			else {
-				console.log ("[onUpdateRoute] route doesn't involve this client");
+				console.log ("[updateRouteFromServer] route doesn't involve this client");
 				return;
 			}
 
-			console.log ("[onUpdateRoute] '" + type + "' route to dropdown '" + select_id + "' option '" + pub_sub_id + "'");
-			console.log ("[onUpdateRoute] select dom node ", $('#' + select_id).find('option[value="' + pub_sub_id + '"]'));
+			console.log ("[updateRouteFromServer] '" + type + "' route to dropdown '" + select_id + "' option '" + pub_sub_id + "'");
+			console.log ("[updateRouteFromServer] select dom node ", $('#' + select_id).find('option[value="' + pub_sub_id + '"]'));
 
 			var cur_option
 
 			// if add route message then select appropriate drop down option
-			// if remove message then de-select approrpriate drop down option
 			if (type === "add") {
-				// $('#select_id option[value=' + pub_sub_id + ']')
 				cur_option = $('#' + select_id).find('option[value="' + pub_sub_id + '"]')
-				if (!$(cur_option[0]).attr("selected")) {
-					$(cur_option[0]).attr("selected", "selected");
-					$(cur_option[0]).attr("data-prev-state", "true");						
+
+				// make sure that drop-down option is of appropriate type (pub or sub)
+				if ($(cur_option[0]).attr("data-pub-or-sub") === connecting_to_pub_or_sub) {
+					if (!$(cur_option[0]).attr("selected")) {
+						$(cur_option[0]).attr("selected", "selected");
+						$(cur_option[0]).attr("data-prev-state", "true");						
+					}
 				}
 			} 
+
+			// if remove message then de-select approrpriate drop down option
 			else if (type === "remove") {
 				cur_option = $('#' + select_id).find('option[value="' + pub_sub_id + '"]');
-				if ($(cur_option[0]).attr("selected")) {
-					$(cur_option[0]).removeAttr("selected");
-					$(cur_option[0]).attr("data-prev-state", "false");						
-				}
 
+				// make sure that drop-down option is of appropriate type (pub or sub)
+				if ($(cur_option[0]).attr("data-pub-or-sub") === connecting_to_pub_or_sub) {
+					if ($(cur_option[0]).attr("selected")) {
+						$(cur_option[0]).removeAttr("selected");
+						$(cur_option[0]).attr("data-prev-state", "false");						
+					}
+				}
 			}
-			console.log ("[onUpdateRoute] cur option ", cur_option[0]);
+			console.log ("[updateRouteFromServer] cur option ", cur_option[0]);
 		}
 
 		function removePubSub(name, address, pub_sub_array) {
@@ -141,6 +150,7 @@
 						$new_option.attr("data-route-name", new_subs_or_pubs[i].name);
 						$new_option.attr("data-client-name", new_subs_or_pubs[i].clientName);
 						$new_option.attr("data-remote-address", new_subs_or_pubs[i].remoteAddress);
+						$new_option.attr("data-pub-or-sub", pub_or_sub);
 						$new_option.attr("data-prev-state", "false");
 						$new_option.appendTo("#" + $item.id);
 						console.log("created new option ", $("#" + $item.id));
