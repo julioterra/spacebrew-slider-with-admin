@@ -18,11 +18,11 @@
 		// variable that holds the spacebrew client object
 		var sb = {}
 			, range_subs = []
-			, mobile = false
+			, data_types = ["range"]
 			, debug = false;
 
 		// customize UI based on whether page is loaded on a mobile device
-		$(document).live("pagebeforecreate", function () { checkIfMobile(range_subs) });
+		$(document).live("pagebeforecreate", function () { checkIfMobile(data_types) });
 
 		// when jquery mobile is ready to initialize the UI call the setUI function 
 		$(document).live("pageinit", setupUI);
