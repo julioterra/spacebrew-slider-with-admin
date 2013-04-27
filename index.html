@@ -9,14 +9,15 @@
 	<script type="text/javascript" src="js/jquery-1.8.2.min.js"></script>
 	<script type="text/javascript" src="js/jquery.mobile-1.2.0.min.js"></script>
     <script type="text/javascript" src="js/mobile_detect.js"></script>
-    <script type="text/javascript" src="js/sb-1.0.4.js"></script>
-    <script type="text/javascript" src="js/sb-admin-0.0.1.js"></script>
+	<script type="text/javascript" src="js/sb-1.2.0.js"></script>
+	<script type="text/javascript" src="js/sb-admin-0.1.0.js"></script>
     <script type="text/javascript" src="js/admin_select.js"></script>
 
     <script type="text/javascript">
 
 		// variable that holds the spacebrew client object
 		var sb = {}
+			, app_name = "space slider"
 			, range_subs = []
 			, data_types = ["range"]
 			, debug = false;
@@ -55,10 +56,16 @@
 		 * 				  It is called when the page loads.
 		 */
 		function setupSpacebrew (){
+			var random_id = "0000" + Math.floor(Math.random() * 10000)
+				;
+
+			app_name = app_name + ' ' + random_id.substring(random_id.length-4);
+
 			console.log("Setting up spacebrew connection");
 			sb = new Spacebrew.Client();
 			sb.extend(Spacebrew.Admin);
 
+			sb.name(app_name);
 			sb.description("Sliders for sending and displaying SpaceBrew range messages.");
 
 			// configure the publication and subscription feeds
@@ -71,6 +78,7 @@
 
 			// override Spacebrew events - this is how you catch events coming from Spacebrew
 			sb.onRangeMessage = onRangeMessage;
+			sb.onOpen = onOpen;
 			sb.onNewClient = onNewClient;
 			sb.onUpdateClient = onNewClient;
 			sb.onRemoveClient = onRemoveClient;
@@ -79,6 +87,17 @@
 			// connect to spacbrew
 			sb.connect();
 		};
+
+		/**
+		 * Function that is called when Spacebrew connection is established
+		 */
+		function onOpen() {
+			var message = "Connected as <strong>" + sb.name() + "</strong>. ";
+			if (sb.name() === app_name) {
+				message += "<br>You can customize this app's name in the query string by adding <strong>name=your_app_name</strong>."
+			}
+			$("#name").html( message );
+		}
 
 		/**
 		 * onRangeMessage Function that is called whenever new spacebrew range messages are received.
@@ -119,6 +138,10 @@
 		</div>
 
 		<div data-role="content" id="content">	
+			<br>
+			<div id="name">Trying to connect</div>
+			<br>
+
 			<label for="slider1">slider 1:</label>
 			<input type="range" class="slider" name="slider" id="slider1" value="500" min="0" max="1023"  />
 			<select name="select-subscribe-range" id="slider1-select" class="select-subscribe-range" multiple="multiple" data-native-menu="true" data-icon="grid" data-iconpos="left">
