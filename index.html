@@ -1,135 +1,108 @@
 <!DOCTYPE html> 
 <html> 
-<head> 
-	<title>Spacebrew Sliders (Range Example)</title> 
+	<head> 
+		<title>Spacebrew Sliders (Range Example)</title> 
 
-	<meta name="viewport" content="width=device-width, initial-scale=1"> 
-	<link rel="stylesheet" href="css/jquery.mobile-1.2.0.min.css" />
+		<meta name="viewport" content="width=device-width, initial-scale=1"> 
+		<link rel="stylesheet" href="css/jquery.mobile-1.2.0.min.css" />
 
-	<script type="text/javascript" src="js/jquery-1.8.2.min.js"></script>
-	<script type="text/javascript" src="js/jquery.mobile-1.2.0.min.js"></script>
-    <script type="text/javascript" src="js/mobile_detect.js"></script>
-	<script type="text/javascript" src="js/sb-1.2.0.js"></script>
-	<script type="text/javascript" src="js/sb-admin-0.1.0.js"></script>
-    <script type="text/javascript" src="js/admin_select.js"></script>
+		<script type="text/javascript" src="js/jquery-1.8.2.min.js"></script>
+		<script type="text/javascript" src="js/jquery.mobile-1.2.0.min.js"></script>
+		<script type="text/javascript" src="js/sb-1.2.0.js"></script>
+		<script type="text/javascript" src="js/sb-admin-0.1.2.js"></script>
+		<script type="text/javascript" src="js/sb-admin-dropdown-gen-0.2.0.js"></script>
 
-    <script type="text/javascript">
+	    <script type="text/javascript">
 
-		// variable that holds the spacebrew client object
-		var sb = {}
-			, app_name = "space slider"
-			, range_subs = []
-			, data_types = ["range"]
-			, debug = false;
-
-		// customize UI based on whether page is loaded on a mobile device
-		$(document).live("pagebeforecreate", function () { checkIfMobile(data_types) });
-
-		// when jquery mobile is ready to initialize the UI call the setUI function 
-		$(document).live("pageinit", setupUI);
-
-		// when window is loaded connect to Spacebrew
-		$(window).on("load", setupSpacebrew);
-
-		/**
-		 * setupUI Function that create the event listeners for the sliders. It creates an callback
-		 * 		   function that sends a spacebrew message whenever an slide event is received.
-		 */
-		function setupUI() {
-			console.log("Setting up the UI listeners");
-
-			// when the slider state changes it sends a message to spacebrew
-			$(".slider").bind( "change", function(event) {
-				sb.send(event.target.id, "range", event.target.valueAsNumber);
-			});
-
-			// if app is running on a desktop computer then set data-native-menu= to "false"
-			$(".select-subscribe-range").bind( "change", function(event) {
-				console.log("select-subscribe-range - dropdown changed ", event);
-				var self = this;
-				updateRouteFromUI( event, self);
-			});		
-		}
-
-		/**
-		 * setupSpacebrew Function that creates and configures the connection to the Spacebrew server.
-		 * 				  It is called when the page loads.
-		 */
-		function setupSpacebrew (){
-			var random_id = "0000" + Math.floor(Math.random() * 10000)
+			// variable that holds the spacebrew client object
+			var sb = {}
+				, app_name = "space slider"
+				, debug = false
+				, selects = adminSelectListGenerator( {"debug": debug} )
+				// , range_subs = []
+				// , data_types = ["range"]
 				;
 
-			app_name = app_name + ' ' + random_id.substring(random_id.length-4);
+			// customize UI based on whether page is loaded on a mobile device
+			$(document).live("pagebeforecreate", function () { selects.initDropdown() });
 
-			console.log("Setting up spacebrew connection");
-			sb = new Spacebrew.Client();
-			sb.extend(Spacebrew.Admin);
+			// when jquery mobile is ready to initialize the UI call the setUI function 
+			$(document).live("pageinit", setupUI);
 
-			sb.name(app_name);
-			sb.description("Sliders for sending and displaying SpaceBrew range messages.");
+			// when window is loaded connect to Spacebrew
+			$(window).on("load", setupSpacebrew);
 
-			// configure the publication and subscription feeds
-			sb.addPublish("slider1", "range", "500");
-			sb.addPublish("slider2", "range", "500");
-			sb.addPublish("slider3", "range", "500");
-			sb.addSubscribe("slider1", "range");
-			sb.addSubscribe("slider2", "range");
-			sb.addSubscribe("slider3", "range");
+			/**
+			 * setupUI Function that create the event listeners for the sliders. It creates an callback
+			 * 		   function that sends a spacebrew message whenever an slide event is received.
+			 */
+			function setupUI() {
+				console.log("Setting up the UI listeners");
 
-			// override Spacebrew events - this is how you catch events coming from Spacebrew
-			sb.onRangeMessage = onRangeMessage;
-			sb.onOpen = onOpen;
-			sb.onNewClient = onNewClient;
-			sb.onUpdateClient = onNewClient;
-			sb.onRemoveClient = onRemoveClient;
-			sb.onUpdateRoute = onUpdateRoute;
-
-			// connect to spacbrew
-			sb.connect();
-		};
-
-		/**
-		 * Function that is called when Spacebrew connection is established
-		 */
-		function onOpen() {
-			var message = "Connected as <strong>" + sb.name() + "</strong>. ";
-			if (sb.name() === app_name) {
-				message += "<br>You can customize this app's name in the query string by adding <strong>name=your_app_name</strong>."
+				// when the slider state changes it sends a message to spacebrew
+				$(".slider").bind( "change", function(event) {
+					sb.send(event.target.id, "range", event.target.valueAsNumber);
+				});
 			}
-			$("#name").html( message );
-		}
 
-		/**
-		 * onRangeMessage Function that is called whenever new spacebrew range messages are received.
-		 * 				  It accepts two parameters:
-		 * @param  {String} name  	Holds name of the subscription feed channel
-		 * @param  {Integer} value 	Holds value received from the subscription feed
-		 */
-		function onRangeMessage(name, value){
-			if (debug) console.log("[onRangeMessage] new range message received ", name);
-			$("#"+name).slider('refresh', value);
-		};
+			/**
+			 * setupSpacebrew Function that creates and configures the connection to the Spacebrew server.
+			 * 				  It is called when the page loads.
+			 */
+			function setupSpacebrew (){
+				var random_id = "0000" + Math.floor(Math.random() * 10000)
+					;
 
-		function onNewClient( client ) {
-			console.log("[onNewClient] new client ", client);
-			addPubSub(client, "range", "subscribe", range_subs);
-			$("select").selectmenu( "refresh" );
-		}
+				app_name = app_name + ' ' + random_id.substring(random_id.length-4);
 
-		function onRemoveClient( name, address ) {
-			console.log("[onRemoveClient] remove client '" + name + "' with address '" + address + "'");
-			removePubSub(name, address, range_subs);
-			$("select").selectmenu( "refresh" );
-		}
+				console.log("Setting up spacebrew connection");
+				sb = new Spacebrew.Client();
+				sb.extend(Spacebrew.Admin);
+				selects.registerSB(sb);
 
-		function onUpdateRoute ( type, pub, sub ) {
-			updateRouteFromServer(type, pub, sub);
-			$("select").selectmenu( "refresh" );
-		}
+				sb.name(app_name);
+				sb.description("Sliders for sending and displaying SpaceBrew range messages.");
 
-    </script>
+				// configure the publication and subscription feeds
+				sb.addPublish("slider1", "range", "500");
+				sb.addPublish("slider2", "range", "500");
+				sb.addPublish("slider3", "range", "500");
+				sb.addSubscribe("slider1", "range");
+				sb.addSubscribe("slider2", "range");
+				sb.addSubscribe("slider3", "range");
 
-</head> 
+				// override Spacebrew events - this is how you catch events coming from Spacebrew
+				sb.onRangeMessage = onRangeMessage;
+				sb.onOpen = onOpen;
+
+				// connect to spacbrew
+				sb.connect();
+			};
+
+			/**
+			 * Function that is called when Spacebrew connection is established
+			 */
+			function onOpen() {
+				var message = "Connected as <strong>" + sb.name() + "</strong>. ";
+				if (sb.name() === app_name) {
+					message += "<br>You can customize this app's name in the query string by adding <strong>name=your_app_name</strong>."
+				}
+				$("#name").html( message );
+			}
+
+			/**
+			 * onRangeMessage Function that is called whenever new spacebrew range messages are received.
+			 * 				  It accepts two parameters:
+			 * @param  {String} name  	Holds name of the subscription feed channel
+			 * @param  {Integer} value 	Holds value received from the subscription feed
+			 */
+			function onRangeMessage(name, value){
+				if (debug) console.log("[onRangeMessage] new range message received ", name);
+				$("#"+name).slider('refresh', value);
+			};
+
+	    </script>
+	</head> 
 <body> 
 
 	<div data-role="page">
@@ -144,21 +117,22 @@
 
 			<label for="slider1">slider 1:</label>
 			<input type="range" class="slider" name="slider" id="slider1" value="500" min="0" max="1023"  />
-			<select name="select-subscribe-range" id="slider1-select" class="select-subscribe-range" multiple="multiple" data-native-menu="true" data-icon="grid" data-iconpos="left">
-			    <option name="none">choose the subscribers:</option>
+
+			<select data-local-route-name="slider1" data-sb-type="range" data-pub-or-sub="publisher" class="spacebrew-select" data-icon="grid" data-iconpos="left"/>
 			</select>
 
 			<label for="slider2">slider 2:</label>
 			<input type="range" class="slider" name="slider" id="slider2" value="500" min="0" max="1023"  />
-			<select name="select-subscribe-range" id="slider2-select" class="select-subscribe-range" multiple="multiple" data-native-menu="true" data-icon="grid" data-iconpos="left">
-			    <option name="none">choose the subscribers:</option>
+
+			<select data-local-route-name="slider2" data-sb-type="range" data-pub-or-sub="publisher" class="spacebrew-select" data-icon="grid" data-iconpos="left"/>
 			</select>
 
 			<label for="slider3">slider 3:</label>
 			<input type="range" class="slider" name="slider" id="slider3" value="500" min="0" max="1023"  />
-			<select name="select-subscribe-range" id="slider3-select" class="select-subscribe-range" multiple="multiple" data-native-menu="true" data-icon="grid" data-iconpos="left">
-			    <option name="none">choose the subscribers:</option>
+
+			<select data-local-route-name="slider3" data-sb-type="range" data-pub-or-sub="publisher" class="spacebrew-select" data-icon="grid" data-iconpos="left"/>
 			</select>
+
 		</div><!-- /content -->
 
 	</div><!-- /page -->
