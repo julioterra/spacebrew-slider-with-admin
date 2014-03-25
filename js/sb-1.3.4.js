@@ -11,17 +11,15 @@
  * spaces. Or, in other words, a simple way to connect interactive things to one another. Learn 
  * more about Spacebrew here: http://docs.spacebrew.cc/
  *
- * To import into your web apps, we recommend using the minimized version of this library, 
- * filename sb-1.0.4.min.js.
+ * To import into your web apps, we recommend using the minimized version of this library.
  *
  * Latest Updates:
- * - enable client apps to extend libs with admin functionality.
- * - added close method to close Spacebrew connection.
+ * - fixed issue where initial admin config messages were not getting passed to admin.js lib
  * 
  * @author 		Brett Renfer and Julio Terra from LAB @ Rockwell Group
- * @filename	sb-1.0.4.js
- * @version 	1.0.4
- * @date 		Mar 24, 2013
+ * @filename	sb-1.3.5.js
+ * @version 	1.3.5
+ * @date 		March 25, 2014
  * 
  */
 
@@ -123,13 +121,35 @@ Spacebrew.Client = function( server, name, description, options ){
 
 	var options = options || {};
 
-	this.debug = options.debug || false;
+	// check if the server variable is an object that holds all config values
+	if (server != undefined) {
+		if (toString.call(server) !== '[object String]') {
+			options.port = server.port || undefined;
+			options.debug = server.debug || false;
+			options.reconnect = server.reconnect || false;
+			description = server.description || undefined;
+			name = server.name || undefined;
+			server = server.server || undefined;
+		}	
+	}
+
+	this.debug = false;
+	if ( window ){
+		this.debug = (window.getQueryString('debug') === "true" ? true : (options.debug || false));
+	}
+	this.reconnect = options.reconnect || true;
+	this.reconnect_timer = undefined;
+
+	this.sendRateCapped = options.capSendRate === undefined ? false : options.capSendRate;
+	this.send_interval = options.sendRate || 16;
+	this.send_blocked = false;
+	this.msg = {};
 
 	/**
 	 * Name of app
 	 * @type {String}
 	 */
-	this._name = name || "javascript client";
+	this._name = name || "javascript client #";
 	if (window) {
 		this._name = (window.getQueryString('name') !== "" ? unescape(window.getQueryString('name')) : this._name);
 	}
@@ -158,7 +178,7 @@ Spacebrew.Client = function( server, name, description, options ){
 	 */
 	this.port = options.port || 9000;
 	if (window) {
-		port = window.getQueryString('port');
+		var port = window.getQueryString('port');
 		if (port !== "" && !isNaN(port)) { 
 			this.port = port; 
 		} 
@@ -182,7 +202,8 @@ Spacebrew.Client = function( server, name, description, options ){
 		},
 		subscribe:{
 			messages:[]
-		}
+		},
+		options:{}
 	};
 
 	this.admin = {}
@@ -204,6 +225,7 @@ Spacebrew.Client.prototype.connect = function(){
 		this.socket.onopen 		= this._onOpen.bind(this);
 		this.socket.onmessage 	= this._onMessage.bind(this);
 		this.socket.onclose 	= this._onClose.bind(this);
+
 	} catch(e){
 		this._isConnected = false;
 		console.log("[connect:Spacebrew] connection attempt failed")
@@ -216,7 +238,7 @@ Spacebrew.Client.prototype.connect = function(){
  */
 Spacebrew.Client.prototype.close = function(){
 	try {
-		if (this._isConnected == true) {
+		if (this._isConnected) {
 			this.socket.close();
 			this._isConnected = false;
 			console.log("[close:Spacebrew] closing websocket connection")
@@ -323,17 +345,36 @@ Spacebrew.Client.prototype.updatePubSub = function(){
  * @public
  */
 Spacebrew.Client.prototype.send = function( name, type, value ){
-	var message = {
-		message: {
-           clientName:this._name,
-           name:name,
-           type:type,
-           value:value
-       }
-   	};
+	var self = this;
 
-   	//console.log(message);
-   	this.socket.send(JSON.stringify(message));
+	this.msg = {
+		"message": {
+           "clientName":this._name,
+           "name": name,
+           "type": type,
+           "value": value
+       }
+	}
+
+	// are we capping the rate at which we send messages?
+	if ( this.sendRateCapped ){
+	   	// if send block is not active then send message
+	   	if (!this.send_blocked) {
+		   	this.socket.send(JSON.stringify(this.msg));
+			this.send_blocked = true;
+			this.msg = undefined;
+
+			// set the timer to unblock message sending
+			setTimeout(function() {
+				self.send_blocked = false;  	// remove send block			
+				if (self.msg != undefined) {  	// if message exists then sent it
+					self.send(self.msg.message.name, self.msg.message.type, self.msg.message.value);
+				}
+			}, self.send_interval);
+	   	} 
+	} else {
+		this.socket.send(JSON.stringify(this.msg));
+	}
 }
 
 /**
@@ -346,6 +387,13 @@ Spacebrew.Client.prototype._onOpen = function() {
 
 	this._isConnected = true;
 	if (this.admin.active) this.connectAdmin();
+
+	// if reconnect functionality is activated then clear interval timer when connection succeeds
+	if (this.reconnect_timer) {
+		console.log("[_onOpen:Spacebrew] tearing down reconnect timer")
+		this.reconnect_timer = clearInterval(this.reconnect_timer);
+		this.reconnect_timer = undefined;
+	}
 
   	// send my config
   	this.updatePubSub();
@@ -363,15 +411,20 @@ Spacebrew.Client.prototype._onMessage = function( e ){
 		, name
 		, type
 		, value
+		, clientName // not used yet, needs to be added to callbacks!
 		;
 
 	// handle client messages 
-	if (data["message"]) {
-		// check to make sure that this is not an admin message
-		if (!data.message["clientName"]) {
+	console.log("_onMessage ", e);
+	if ((!("targetType" in data) && !( data instanceof Array )) || data["targetType"] == "client"){
+		//expecting only messages
+		if ("message" in data) {
 			name = data.message.name;
 		    type = data.message.type;
 			value = data.message.value;
+
+			// for now only adding this if we have it, for backwards compatibility
+			if ( data.message.clientName ) clientName = data.message.clientName;
 
 			switch( type ){
 				case "boolean":
@@ -385,7 +438,7 @@ Spacebrew.Client.prototype._onMessage = function( e ){
 					break;
 				default:
 					this.onCustomMessage( name, value, type );
-			}			
+			}
 		}
 	} 
 
@@ -403,10 +456,23 @@ Spacebrew.Client.prototype._onMessage = function( e ){
  * @memberOf Spacebrew.Client
  */
 Spacebrew.Client.prototype._onClose = function() {
+	var self = this;
     console.log("[_onClose:Spacebrew] Spacebrew connection closed");
 
 	this._isConnected = false;
 	if (this.admin.active) this.admin.remoteAddress = undefined;
+
+	// if reconnect functionality is activated set interval timer if connection dies
+	if (this.reconnect && !this.reconnect_timer) {
+		console.log("[_onClose:Spacebrew] setting up reconnect timer");
+		this.reconnect_timer = setInterval(function () {
+				if (self.isConnected != false) {
+					self.connect();
+					console.log("[reconnect:Spacebrew] attempting to reconnect to spacebrew");
+				}
+			}, 5000);
+	}
+
 
 	this.onClose();
 };
@@ -467,6 +533,4 @@ Spacebrew.Client.prototype.extend = function ( mixin ) {
         }
     }
 };
-
-
 
